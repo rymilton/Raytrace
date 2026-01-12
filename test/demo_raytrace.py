@@ -7,23 +7,31 @@ from raytrace.raytracers import raytrace
 
 # setup volume. This is the shape of the 3D grid through which muons will be traced
 # The vol variable is used simply for the 3D grid dimensions. There's no density values here like the original repository had
-vol = np.ones((5,11,11))
+vol = np.ones((5, 11, 11))
 
 # create 3D source-destination pairs
-sources = np.stack([
-    *np.meshgrid(
-        np.arange(0.5, 11.5, 1),
-        np.arange(0.5, 11.5, 1),
-    ),
-    -10.0*np.ones((11,11)),
-]).reshape((3,-1)).T
+sources = (
+    np.stack(
+        [
+            *np.meshgrid(
+                np.arange(0.5, 11.5, 1),
+                np.arange(0.5, 11.5, 1),
+            ),
+            -10.0 * np.ones((11, 11)),
+        ]
+    )
+    .reshape((3, -1))
+    .T
+)
 dests = sources.copy()
-dests[:, 2] = 10.0            # z moves from -10 → 10
+dests[:, 2] = 10.0  # z moves from -10 → 10
 
 # run raytrace
 # For each muon, we get the voxel indices it passes through and the lengths in each voxel
-all_muon_voxels, all_muon_lengths_in_voxels = raytrace(dests, sources, vol, vol_start=(0,0,0), vol_spacing=(1,1,1))
-
+all_muon_voxels, all_muon_lengths_in_voxels = raytrace(
+    dests, sources, vol, vol_start=(0, 0, 0), vol_spacing=(1, 1, 1)
+)
+print(all_muon_lengths_in_voxels[0])
 # We'll now visualize a subset of the muons and their voxel intersections
 # choose 10 random muons
 
@@ -37,7 +45,13 @@ fig = plt.figure(figsize=(10, 8))
 ax = fig.add_subplot(111, projection="3d")
 
 # compute global max path length for normalization
-all_lengths_flat = np.hstack([all_muon_lengths_in_voxels[m] for m in selected_muons if len(all_muon_lengths_in_voxels[m]) > 0])
+all_lengths_flat = np.hstack(
+    [
+        all_muon_lengths_in_voxels[m]
+        for m in selected_muons
+        if len(all_muon_lengths_in_voxels[m]) > 0
+    ]
+)
 norm = mcolors.Normalize(vmin=0, vmax=all_lengths_flat.max())
 cmap = cm.viridis
 
@@ -56,12 +70,7 @@ for m in selected_muons:
     colors = cmap(norm(lengths))
 
     # scatter points
-    ax.scatter(
-        x, y, z,
-        c=colors,
-        s=50 + 100 * lengths / lengths.max(),
-        alpha=0.8
-    )
+    ax.scatter(x, y, z, c=colors, s=50 + 100 * lengths / lengths.max(), alpha=0.8)
 
     # line connecting the points
     ax.plot(x, y, z, linewidth=2, alpha=0.7, color="gray")
