@@ -5,9 +5,9 @@ import matplotlib.colors as mcolors
 
 from raytrace.raytracers import raytrace
 
-# setup volume with "hole"
+# setup volume. This is the shape of the 3D grid through which muons will be traced
+# The vol variable is used simply for the 3D grid dimensions. There's no density values here like the original repository had
 vol = np.ones((5,11,11))
-vol[:, 5, 5] = 0
 
 # create 3D source-destination pairs
 sources = np.stack([
