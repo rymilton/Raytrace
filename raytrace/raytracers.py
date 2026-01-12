@@ -116,18 +116,9 @@ def siddonraytracer(vols, source, target, start, spacing):
         indices[:, ax] = np.floor( (source[ax] + alpha_mids*diff[ax] - first_plane[ax])/spacing[ax] )
     logger.debug('indices: {}'.format(indices))
 
-    # read densities corresponding to indices
-    try:
-        densities = []
-        for ii, vol in enumerate(vols):
-            d = vol[indices[:, 2], indices[:, 1], indices[:, 0]]
-            densities.append(d)
-            logger.debug('densities ({}): {}'.format(ii, d))
-    except IndexError:
-        raise NonIntersectingRayError()
     logger.debug('')
 
-    return (alphas, lengths, densities, raylength, indices)
+    return (alphas, lengths, raylength, indices)
 
 def spottrace(sad, det_dims, det_center, det_spacing, det_pixelsize, det_azi, det_zen, det_ang, vols, vol_start, vol_spacing):
     """Emulates the diverging square beam geometry of proton beams. Unlike beamtrace(), this function
@@ -233,14 +224,22 @@ def raytrace(sources, dests, vol, vol_start, vol_spacing, stop_early=None):
         dests = [dests]
     dests = np.array(dests)
 
-    rpl = np.zeros((len(sources),))
-
+    all_muon_voxels = []
+    all_muon_lengths_in_voxels = []
     for idx in range(len(sources)):
         src = sources[idx]
         dest = dests[idx]
+        muon_voxels = []
+        muon_lengths_in_voxels = []
         try:
-            (_, ray_lengths, ray_vals, _, _) = siddonraytracer(vol, src, dest, vol_start, vol_spacing)
-            rpl[idx] = np.dot(ray_lengths, ray_vals[0])
+            (_, ray_lengths, _, voxel_indices) = siddonraytracer(vol, src, dest, vol_start, vol_spacing)
+            for i in range(len(ray_lengths)):
+                muon_lengths_in_voxels.append(ray_lengths[i])
+                muon_voxels.append(voxel_indices[i])
+            all_muon_voxels.append(muon_voxels)
+            all_muon_lengths_in_voxels.append(muon_lengths_in_voxels)
         except NonIntersectingRayError:
-            rpl[idx] = 0
-    return rpl
+            all_muon_voxels.append([])
+            all_muon_lengths_in_voxels.append([])
+
+    return all_muon_voxels, all_muon_lengths_in_voxels
