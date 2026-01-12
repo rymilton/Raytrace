@@ -4,113 +4,40 @@ General purpose python ray tracing library implemented in on GPU in CUDA as a Cy
 This code is based on Siddon's algorithm, which has been quite extensively used in medical physics for CT projection and radiation treatment planning.
 
 ## Usage
-This library allows one to calculate the _radiologic path-length (rpl)_ along a defined ray through a 3D voxel volume. This functionality can be used to obtain the forward radon transform of a volume for any given source-detector geometry, or even detect collisions with solid objects (represented as binary volumes) -- for example.
+This library allows one to obtain the voxels a muon passes through and the length of the path within each voxel.
 
-### The `raytrace()` General Purpose Function:
-Below is an example of how to perform raytracing to get the rpl for a set of rays, each defined by a pair of source and destination coordinates, relative to the volume start coordinates and voxelsize:
-```python
-import numpy as np
-import matplotlib.pyplot as plt
-
-from raytrace import raytrace
-
-# setup volume with "hole"
-vol = np.ones((5,11,11))
-vol[:, 5, 5] = 0
-
-# create 3D source-destination pairs
-sources = np.stack([
-    *np.meshgrid(
-        np.arange(0.5, 11.5, 1),
-        np.arange(0.5, 11.5, 1),
-    ),
-    -10.0*np.ones((11,11)),
-]).reshape((3,-1)).T
-dests = sources.copy()
-dests[:, 2] = 10.0
-
-# run raytrace
-rpl = raytrace(dests, sources, vol, vol_start=(0,0,0), vol_spacing=(1,1,1))
-rpl = rpl.reshape((11,11))
-
-# show raytracing output
-import matplotlib.pyplot as plt
-plt.imshow(rpl)
-plt.show()
+## Environment and installation
+### CUDA
+CUDA is needed to install this software. CUDA needs to be in your PATH and LD_LIBRARY_PATH variables. To do this for example on the UCR GPU machine, you can add the following to your `~/.bashrc`:
 ```
-<img src="assets/raytrace_demo.png" style="max-width:400px" />
-
-### The `beamtrace()` Convenience Function
-While the `raytrace()` function offers a general interface for tracing through a volume between individual (source, destination) coordinate pairs, often in radiation therapy, we are constrained to the geometry in which a single coordinate acts as a "common source" for a set of destination coordinates constrained to a plane, which is typically called the _fluence plane_; the `beamtrace()` function was developed for this purpose.
-
-In this geometry, instead of directly specifying destination coordinates, we instead describe a plane's (the _fluence plane_) position, shape, grid-structure, and orientation within the volume and designate the coordinates in each of the grid's cells as the destination points (see figure below-left). In addition to this difference, a 9-point supersampling arrangement (see figure below-right) is also traced for each of the grid cells to ensure that any contact of each sub-beam with the mask in the volume will be counted (in the `raytrace()` function, it is only the intersections of the volume with the 1D ray between source-destination pairs, where-as here the intersection of the volume and the volume of the diverging square sub-beam are counted).
-
-<table style='text-align:center'>
-  <tr>
-    <td>
-      <img src="assets/beamtrace_geometry.png" style="max-width:300px" />
-    </td>
-    <td>
-      <img src="assets/beamtrace_supersample.png" style="max-width:300px" />
-    </td>
-  </tr>
-  <tr>
-    <td>Constrained geometry of the <code>beamtrace()</code> function</td>
-    <td style='word-wrap:break-word'>9-point supersampling arrangement of the <code>beamtrace()</code> function</td>
-  </tr>
-</table>
-
-Here is an example of how to perform beamtracing to get the rpl for a set of these volumetric sub-beams (beamlets):
-```python
-import numpy as np
-import matplotlib.pyplot as plt
-
-from raytrace import beamtrace
-
-# setup volume with "hole"
-#   convention for beamtrace is along +y axis when angles=(0,0,0)
-vol = np.ones((11,5,11))
-vol[2, 2:, 2] = 0
-vol[5, :, 5] = 0
-vol[8, 4:, 8] = 0
-
-# define constrained "fluence plane" geometry
-sad = 100.0
-plane_size = (11, 11)
-plane_center = (5.5, 0, 5.5)
-plane_spacing = (1,1)
-plane_pixelsize = (1, 1)
-angles = (0, 0, 0) # adjustable "beam angles"
-
-# run raytrace
-rpl = beamtrace(sad, plane_size, plane_center, plane_spacing, *angles, vol, vol_start=(0,0,0), vol_spacing=(1,1,1))
-rpl = rpl.reshape((11,11))
-
-# show raytracing output
-import matplotlib.pyplot as plt
-plt.imshow(rpl)
-plt.colorbar()
-plt.show()
+export PATH=$PATH:/usr/local/cuda-11.8/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda-11.8/lib64
 ```
-<img src="assets/beamtrace_demo.png" style="max-width:400px" />
+Then do `source ~/.bashrc` to load your changes.
+### Python environment
+There are few necessary packages needed for this software. Only `numpy` is strictly necessary and `matplotlib` is needed to run the main example. To set up a Python environment do the following:
+```
+python3 -m venv raytrace_venv
+source raytrace_venv/bin/activate
+pip install numpy matplotlib
+```
+### Installation
+To install the software, simply do `pip install .` in the main directory.
 
-## Installation
-The simplest way to install this libary is to run 
-```sh
-pip install git+https://github.com/ryanneph/raytrace.git@master#egg=raytrace
-```
+## Example
+The main example to demonstrate Siddon's algorithm is `test/demo_raytrace.py`. To run this, simply do `python test/demo_raytrace.py`. In this example, a 3D grid is made and muons are sent vertically through the grid. The grid is 11x11 voxels in x-y and has a 5 voxel height along z. The calculated path for a muon should be the intersection with the 5 vertical voxels, each with a path length of 1. The script then plots the paths of 10 randomly selected muons out of the 121 muons that are given to Siddon's algorithm. An example plot of the script is below.
+<img width="1000" height="800" alt="image" src="https://github.com/user-attachments/assets/71526d04-fe2c-4ceb-af2e-487bb0bfee09" />
 
-Alternatively if you wish to install from source you can first clone/cd this repo, then run
-```sh
-pip install .
+The main function used in this code is `raytrace()`. The function is used as follows:
 ```
+all_muon_voxels, all_muon_lengths_in_voxels = raytrace(
+   dests, # 3D array of the final muon positions
+   sources, # 3D array of the initial muon positions
+   vol, # Defintion of the grid
+   vol_start=(0,0,0), # Where the voxels are positioned
+   vol_spacing=(1,1,1) # The spacing between each voxel. If you want your voxels to be double this size in each axis for instance, do (2, 2, 2). The path length will then be 2.
+)
+```
+`all_muon_voxels` is a nested list where each entry is a list of voxel indices for each muon. For instance, if an entry is `[array([1, 1, 4]), array([1, 1, 3]), array([1, 1, 2]), array([1, 1, 1]), array([1, 1, 0])]`, the muon intersects with voxel indices (1, 1, 4), (1, 1, 3), (1, 1, 2), (1, 1, 1), and (1, 1, 0). 
 
-## Developing
-To get started with developing this library, first clone/cd this repo then run
-```sh
-make build
-```
-or, on systems without make:
-```sh
-python setup.py build_ext --inplace
-```
+`all_muon_lengths_in_voxels` is a 2D list where each entry is a list of path lengths for each muon in the voxels it passed through. For the previous muon we were considering, we get an output of `[np.float64(0.9999999999999998), np.float64(0.9999999999999998), np.float64(0.9999999999999998), np.float64(0.9999999999999998), np.float64(1.0000000000000009)]`. This means the muon has a path length of 1 in the voxels (1, 1, 4), (1, 1, 3), (1, 1, 2), (1, 1, 1), and (1, 1, 0).
