@@ -112,8 +112,16 @@ def siddonraytracer(vols, source, target, start, spacing):
 
     # calculate voxel indices (eq 12)
     indices = np.empty((len(alpha_mids), 3), dtype=int)
+
     for ax in range(3):
-        indices[:, ax] = np.floor( (source[ax] + alpha_mids*diff[ax] - first_plane[ax])/spacing[ax] )
+        idx = np.floor(
+            (source[ax] + alpha_mids*diff[ax] - first_plane[ax]) / spacing[ax]
+        ).astype(int)
+
+        idx = np.clip(idx, 0, size[ax] - 1)
+
+        indices[:, ax] = idx
+
     logger.debug('indices: {}'.format(indices))
 
     logger.debug('')
